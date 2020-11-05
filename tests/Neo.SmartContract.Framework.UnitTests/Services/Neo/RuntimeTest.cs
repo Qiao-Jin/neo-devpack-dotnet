@@ -1,15 +1,14 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Neo.Compiler.MSIL.UnitTests.Utils;
 using Neo.IO;
+using Neo.IO.Json;
 using Neo.Network.P2P.Payloads;
 using Neo.Persistence;
+using Neo.SmartContract.Manifest;
 using Neo.VM;
 using Neo.VM.Types;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Text;
-using NEOSmartContract = Neo.SmartContract;
 
 namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
 {
@@ -51,20 +50,15 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
         [TestMethod]
         public void Test_InvocationCounter()
         {
-            // Build script
-
-            _engine.Reset();
+            // We need a new TestEngine because invocationCounter it's shared between them
 
             var contract = _engine.EntryScriptHash;
-            _engine.Snapshot.Contracts.Add(contract, new Ledger.ContractState()
+            var engine = new TestEngine(TriggerType.Application, new DummyVerificable());
+            engine.Snapshot.Contracts.Add(contract, new Ledger.ContractState()
             {
                 Script = _engine.InvocationStack.Peek().Script,
-                Manifest = new NEOSmartContract.Manifest.ContractManifest()
-                {
-                }
+                Manifest = ContractManifest.FromJson(JObject.Parse(_engine.Build("./TestClasses/Contract_Runtime.cs").finalManifest)),
             });
-
-            _engine.InvocationStack.Clear();
 
             using (ScriptBuilder sb = new ScriptBuilder())
             {
@@ -73,21 +67,21 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
                 // Second
                 sb.EmitAppCall(contract, "getInvocationCounter");
 
-                _engine.LoadScript(sb.ToArray());
+                engine.LoadScript(sb.ToArray());
             }
 
             // Check
 
-            Assert.AreEqual(VMState.HALT, _engine.Execute());
-            Assert.AreEqual(2, _engine.ResultStack.Count);
+            Assert.AreEqual(VMState.HALT, engine.Execute());
+            Assert.AreEqual(2, engine.ResultStack.Count);
 
-            var item = _engine.ResultStack.Pop();
+            var item = engine.ResultStack.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(0x02, item.GetBigInteger());
+            Assert.AreEqual(0x02, item.GetInteger());
 
-            item = _engine.ResultStack.Pop();
+            item = engine.ResultStack.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(0x01, item.GetBigInteger());
+            Assert.AreEqual(0x01, item.GetInteger());
         }
 
         [TestMethod]
@@ -114,7 +108,7 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
 
             var item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(1234, item.GetBigInteger());
+            Assert.AreEqual(1234, item.GetInteger());
         }
 
         [TestMethod]
@@ -124,7 +118,7 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
             Assert.AreEqual(1, result.Count);
 
             var item = result.Pop();
-            Assert.IsInstanceOfType(item, typeof(ByteArray));
+            Assert.IsInstanceOfType(item, typeof(VM.Types.ByteString));
             Assert.AreEqual("NEO", item.GetString());
         }
 
@@ -136,7 +130,7 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
 
             var item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual((byte)TriggerType.Application, item.GetBigInteger());
+            Assert.AreEqual((byte)TriggerType.Application, item.GetInteger());
         }
 
         [TestMethod]
@@ -147,17 +141,17 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
 
             var item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(-1, item.GetBigInteger());
+            Assert.AreEqual(TestEngine.TestGas - 1200, item.GetInteger());
         }
 
         [TestMethod]
         public void Test_Log()
         {
-            var list = new List<LogEventArgs>();
+            var list = new System.Collections.Generic.List<LogEventArgs>();
             var method = new EventHandler<LogEventArgs>((s, e) => list.Add(e));
 
             ApplicationEngine.Log += method;
-            var result = _engine.ExecuteTestCaseStandard("log", new ByteArray(Encoding.UTF8.GetBytes("LogTest")));
+            var result = _engine.ExecuteTestCaseStandard("log", new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("LogTest")));
             ApplicationEngine.Log -= method;
 
             Assert.AreEqual(1, list.Count);
@@ -171,63 +165,41 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
         {
             // True
 
-            var result = _engine.ExecuteTestCaseStandard("checkWitness", new ByteArray(
+            var result = _engine.ExecuteTestCaseStandard("checkWitness", new VM.Types.ByteString(
                 new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, }
                 ));
             Assert.AreEqual(1, result.Count);
 
             var item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(VM.Types.Boolean));
-            Assert.IsTrue(item.ToBoolean());
+            Assert.IsTrue(item.GetBoolean());
 
             // False
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard("checkWitness", new ByteArray(
+            result = _engine.ExecuteTestCaseStandard("checkWitness", new VM.Types.ByteString(
                 new byte[] { 0xFA, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, }
                 ));
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(VM.Types.Boolean));
-            Assert.IsFalse(item.ToBoolean());
-        }
-
-        [TestMethod]
-        public void Test_Notify()
-        {
-            var list = new List<NotifyEventArgs>();
-            var method = new EventHandler<NotifyEventArgs>((s, e) => list.Add(e));
-
-            ApplicationEngine.Notify += method;
-            var result = _engine.ExecuteTestCaseStandard("notify", new ByteArray(Encoding.UTF8.GetBytes("NotifyTest")));
-            ApplicationEngine.Notify -= method;
-
-            Assert.AreEqual(1, list.Count);
-
-            var item = list[0];
-            var array = item.State;
-            Assert.IsInstanceOfType(array, typeof(VM.Types.Array));
-            Assert.AreEqual("NotifyTest", ((VM.Types.Array)array)[0].GetString());
+            Assert.IsFalse(item.GetBoolean());
         }
 
         [TestMethod]
         public void Test_GetNotificationsCount()
         {
-            var notifications = ((List<NotifyEventArgs>)_engine.Notifications);
-            notifications.Clear();
-            notifications.AddRange(new NotifyEventArgs[]
-            {
-                new NotifyEventArgs(null, UInt160.Zero, new Integer(0x01)),
-                new NotifyEventArgs(null, UInt160.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"), new Integer(0x02))
-            });
+            _engine.ClearNotifications();
+            _engine.SendTestNotification(UInt160.Zero, "", new VM.Types.Array(new StackItem[] { new Integer(0x01) }));
+            _engine.SendTestNotification(UInt160.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"), "", new VM.Types.Array(new StackItem[] { new Integer(0x02) }));
 
-            var result = _engine.ExecuteTestCaseStandard("getNotificationsCount", new ByteArray(UInt160.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").ToArray()));
+            var result = _engine.ExecuteTestCaseStandard("getNotificationsCount", new VM.Types.ByteString(UInt160.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").ToArray()));
             Assert.AreEqual(1, result.Count);
 
             var item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(0x01, item.GetBigInteger());
+            Assert.AreEqual(0x01, item.GetInteger());
 
             _engine.Reset();
             result = _engine.ExecuteTestCaseStandard("getNotificationsCount", StackItem.Null);
@@ -235,26 +207,22 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(0x02, item.GetBigInteger());
+            Assert.AreEqual(0x02, item.GetInteger());
         }
 
         [TestMethod]
         public void Test_GetNotifications()
         {
-            var notifications = ((List<NotifyEventArgs>)_engine.Notifications);
-            notifications.Clear();
-            notifications.AddRange(new NotifyEventArgs[]
-            {
-                new NotifyEventArgs(null, UInt160.Zero, new Integer(0x01)),
-                new NotifyEventArgs(null, UInt160.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"), new Integer(0x02))
-            });
+            _engine.ClearNotifications();
+            _engine.SendTestNotification(UInt160.Zero, "", new VM.Types.Array(new StackItem[] { new Integer(0x01) }));
+            _engine.SendTestNotification(UInt160.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"), "", new VM.Types.Array(new StackItem[] { new Integer(0x02) }));
 
-            var result = _engine.ExecuteTestCaseStandard("getNotifications", new ByteArray(UInt160.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").ToArray()));
+            var result = _engine.ExecuteTestCaseStandard("getNotifications", new VM.Types.ByteString(UInt160.Parse("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").ToArray()));
             Assert.AreEqual(1, result.Count);
 
             var item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(0x02, item.GetBigInteger());
+            Assert.AreEqual(0x02, item.GetInteger());
 
             _engine.Reset();
             result = _engine.ExecuteTestCaseStandard("getAllNotifications");
@@ -262,7 +230,7 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(0x03, item.GetBigInteger());
+            Assert.AreEqual(0x03, item.GetInteger());
         }
     }
 }

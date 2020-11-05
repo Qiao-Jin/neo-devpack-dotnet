@@ -1,5 +1,6 @@
 using Mono.Cecil;
 using Neo.Compiler.MSIL;
+using Neo.IO.Json;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -11,7 +12,6 @@ namespace Neo.Compiler
     {
         public NeoModule(ILogger logger) { }
 
-        public string mainMethod;
         public ConvOption option;
         public List<CustomAttribute> attributes = new List<CustomAttribute>();
         public Dictionary<string, NeoMethod> mapMethods = new Dictionary<string, NeoMethod>();
@@ -38,11 +38,11 @@ namespace Neo.Compiler
 
         public string GenJson()
         {
-            MyJson.JsonNode_Object json = new MyJson.JsonNode_Object();
-            json["__name__"] = new MyJson.JsonNode_ValueString("neomodule.");
+            JObject json = new JObject();
+            json["__name__"] = "neomodule.";
 
             //code
-            var jsoncode = new MyJson.JsonNode_Array();
+            var jsoncode = new JArray();
             json["code"] = jsoncode;
             foreach (var c in this.totalCodes.Values)
             {
@@ -55,19 +55,17 @@ namespace Neo.Compiler
             {
                 codestr += c.ToString("X02");
             }
-            json.SetDictValue("codebin", codestr);
+            json["codebin"] = codestr;
 
             //calls
-            MyJson.JsonNode_Object methodinfo = new MyJson.JsonNode_Object();
+            JObject methodinfo = new JObject();
             json["call"] = methodinfo;
             foreach (var m in this.mapMethods)
             {
                 methodinfo[m.Key] = m.Value.GenJson();
             }
 
-            StringBuilder sb = new StringBuilder();
-            json.ConvertToStringWithFormat(sb, 4);
-            return sb.ToString();
+            return json.ToString(true);
         }
     }
 
@@ -78,12 +76,11 @@ namespace Neo.Compiler
         public int lastparam = -1; // The last param
         public int lastCast = -1;
 
-        public bool isEntry = false;
         public string _namespace;
         public string name;
         public string displayName;
         public List<NeoParam> paramtypes = new List<NeoParam>();
-        public string returntype;
+        public TypeReference returntype;
         public bool isPublic = true;
         public bool inSmartContract;
         public ILMethod method;
@@ -93,19 +90,19 @@ namespace Neo.Compiler
         public SortedDictionary<int, NeoCode> body_Codes = new SortedDictionary<int, NeoCode>(); // Temporary records and will be merged later
         public int funcaddr;
 
-        public MyJson.JsonNode_Object GenJson()
+        public JObject GenJson()
         {
-            MyJson.JsonNode_Object json = new MyJson.JsonNode_Object();
-            json.SetDictValue("name", this.name);
-            json.SetDictValue("returntype", this.returntype);
-            json.SetDictValue("paramcount", this.paramtypes.Count);
-            MyJson.JsonNode_Array jsonparams = new MyJson.JsonNode_Array();
-            json.SetDictValue("params", jsonparams);
+            JObject json = new JObject();
+            json["name"] = this.name;
+            json["returntype"] = FuncExport.ConvType(this.returntype);
+            json["paramcount"] = this.paramtypes.Count;
+            JArray jsonparams = new JArray();
+            json["params"] = jsonparams;
             for (var i = 0; i < this.paramtypes.Count; i++)
             {
-                MyJson.JsonNode_Object item = new MyJson.JsonNode_Object();
-                item.SetDictValue("name", this.paramtypes[i].name);
-                item.SetDictValue("type", this.paramtypes[i].type);
+                JObject item = new JObject();
+                item["name"] = this.paramtypes[i].name;
+                item["type"] = FuncExport.ConvType(this.paramtypes[i].type);
                 jsonparams.Add(item);
             }
             return json;
@@ -121,12 +118,36 @@ namespace Neo.Compiler
             _namespace = method.method.DeclaringType.FullName;
             name = method.method.FullName;
             displayName = method.method.Name[..1].ToLowerInvariant() + method.method.Name[1..];
-            inSmartContract = method.method.DeclaringType.BaseType.Name == "SmartContract";
+            inSmartContract = method.method.DeclaringType.BaseType.FullName == "Neo.SmartContract.Framework.SmartContract";
             isPublic = method.method.IsPublic;
 
             foreach (var attr in method.method.CustomAttributes)
             {
                 ProcessAttribute(attr);
+            }
+
+            // Ensure method definition
+
+            switch (displayName)
+            {
+                case StandardMethods.Verify:
+                    {
+                        if (method.returntype.FullName != FuncExport.Boolean.FullName)
+                        {
+                            throw new Exception("verify must be: bool verify(...);");
+                        }
+                        break;
+                    }
+                case StandardMethods.Deploy:
+                    {
+                        if (method.paramtypes.Count != 1 ||
+                            method.returntype.FullName != FuncExport.Void.FullName ||
+                            method.paramtypes[0].type.FullName != FuncExport.Boolean.FullName)
+                        {
+                            throw new Exception("_deploy must be: void _deploy(bool update);");
+                        }
+                        break;
+                    }
             }
         }
 
@@ -157,7 +178,7 @@ namespace Neo.Compiler
             displayName = value.displayName;
             paramtypes = value.paramtypes;
 
-            if (value.returntype != "System.Void")
+            if (FuncExport.ConvType(value.returntype) != "Void")
             {
                 throw new NotSupportedException($"NEP-3 does not support return types for events. Expected: `System.Void`, Detected: `{value.returntype}`");
             }
@@ -178,6 +199,7 @@ namespace Neo.Compiler
         public int srcaddr;
         public int[] srcaddrswitch;
         public string srcfunc;
+        public Mono.Cecil.Cil.SequencePoint sequencePoint;
 
         public override string ToString()
         {
@@ -203,7 +225,7 @@ namespace Neo.Compiler
             return info;
         }
 
-        public MyJson.JsonNode_ValueString GenJson()
+        public string GenJson()
         {
             string info = "" + addr.ToString("X04") + " " + code.ToString();
             for (var j = 0; j < 16 - code.ToString().Length; j++)
@@ -228,7 +250,7 @@ namespace Neo.Compiler
             {
                 info += "//" + debugcode + "(" + debugline + ")";
             }
-            return new MyJson.JsonNode_ValueString(info);
+            return info;
         }
     }
 
@@ -236,7 +258,7 @@ namespace Neo.Compiler
     {
         public int index { get; private set; }
 
-        public NeoField(string name, string type, int index) : base(name, type)
+        public NeoField(string name, TypeReference type, int index) : base(name, type)
         {
             this.index = index;
         }
@@ -245,9 +267,9 @@ namespace Neo.Compiler
     public class NeoParam
     {
         public string name { get; private set; }
-        public string type { get; private set; }
+        public TypeReference type { get; private set; }
 
-        public NeoParam(string name, string type)
+        public NeoParam(string name, TypeReference type)
         {
             this.name = name;
             this.type = type;
@@ -255,7 +277,7 @@ namespace Neo.Compiler
 
         public override string ToString()
         {
-            return type + " " + name;
+            return FuncExport.ConvType(type) + " " + name;
         }
     }
 }

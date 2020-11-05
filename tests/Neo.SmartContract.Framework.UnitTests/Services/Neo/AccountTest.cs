@@ -33,31 +33,29 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
 
             // Empty
 
-            var result = _engine.ExecuteTestCaseStandard("accountIsStandard", new ByteArray(new byte[0]));
+            var result = _engine.ExecuteTestCaseStandard("accountIsStandard", new VM.Types.ByteString(new byte[0]));
             Assert.AreEqual(VM.VMState.FAULT, _engine.State);
             Assert.AreEqual(0, result.Count);
 
-            // Standard
+            // No standard
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard("accountIsStandard", new ByteArray(new byte[20]));
+            result = _engine.ExecuteTestCaseStandard("accountIsStandard", new VM.Types.ByteString(new byte[20]));
             Assert.AreEqual(VM.VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             var item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Boolean));
-            Assert.AreEqual(true, item.ToBoolean());
-
-            // No standard
+            Assert.AreEqual(false, item.GetBoolean());
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard("accountIsStandard", new ByteArray(noStandard));
+            result = _engine.ExecuteTestCaseStandard("accountIsStandard", new VM.Types.ByteString(noStandard));
             Assert.AreEqual(VM.VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Boolean));
-            Assert.AreEqual(false, item.ToBoolean());
+            Assert.AreEqual(false, item.GetBoolean());
         }
     }
 }

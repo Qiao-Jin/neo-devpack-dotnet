@@ -2,18 +2,27 @@ namespace Neo.Compiler.MSIL.UnitTests.TestClasses
 {
     public class Contract1 : SmartContract.Framework.SmartContract
     {
-        //default smartcontract entry point.
-        //but the unittest can be init from anywhere
-        //no need to add code in Main.
-        public static object Main(string method, object[] args)
-        {
-            return UnitTest_001();
-        }
-        public static byte[] UnitTest_001()
+        public static byte[] unitTest_001()
         {
             var nb = new byte[] { 1, 2, 3, 4 };
             return nb;
         }
 
+        public static void testVoid()
+        {
+            var nb = new byte[] { 1, 2, 3, 4 };
+        }
+
+        public static byte[] testArgs1(byte a)
+        {
+            var nb = new byte[] { 1, 2, 3, 3 };
+            nb[3] = a;
+            return nb;
+        }
+
+        public static object testArgs2(byte[] a)
+        {
+            return a;
+        }
     }
 }

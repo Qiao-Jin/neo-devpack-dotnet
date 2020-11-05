@@ -12,7 +12,7 @@ namespace Neo.Compiler.MSIL.UnitTests
         {
             var testengine = new TestEngine();
             testengine.AddEntryScript("./TestClasses/Contract_StaticVar.cs");
-            var result = testengine.ExecuteTestCaseStandard("testfunc");
+            var result = testengine.ExecuteTestCaseStandard("main");
 
             //test (1+5)*7 == 42
             StackItem wantresult = 42;
@@ -23,23 +23,23 @@ namespace Neo.Compiler.MSIL.UnitTests
         [TestMethod]
         public void Test_StaticVarInit()
         {
-            ByteArray var1;
-            ByteArray var2;
+            ByteString var1;
+            ByteString var2;
             {
                 var testengine = new TestEngine();
                 testengine.AddEntryScript("./TestClasses/Contract_StaticVarInit.cs");
-                var result = testengine.ExecuteTestCaseStandard("staticinit");
+                var result = testengine.ExecuteTestCaseStandard("staticInit");
                 // static byte[] callscript = ExecutionEngine.EntryScriptHash;
                 // ...
                 // return callscript
-                var1 = (result.Pop() as ByteArray);
+                var1 = (result.Pop() as ByteString);
             }
             {
                 var testengine = new TestEngine();
                 testengine.AddEntryScript("./TestClasses/Contract_StaticVarInit.cs");
-                var result = testengine.ExecuteTestCaseStandard("directget");
+                var result = testengine.ExecuteTestCaseStandard("directGet");
                 // return ExecutionEngine.EntryScriptHash
-                var2 = (result.Pop() as ByteArray);
+                var2 = (result.Pop() as ByteString);
             }
             Assert.IsNotNull(var1);
             Assert.AreEqual(var1, var2);

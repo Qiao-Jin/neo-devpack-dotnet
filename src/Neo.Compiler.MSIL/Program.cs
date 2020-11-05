@@ -2,11 +2,13 @@ using CommandLine;
 using Mono.Cecil;
 using Neo.Compiler.MSIL;
 using Neo.Compiler.Optimizer;
+using Neo.IO.Json;
 using Neo.SmartContract;
 using Neo.SmartContract.Manifest;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -29,12 +31,12 @@ namespace Neo.Compiler
             Parser.Default.ParseArguments<Options>(args).WithParsed(o => Environment.ExitCode = Compile(o));
         }
 
-        public static int Compile(Options options)
+        public static int Compile(Options options, ILogger log = null)
         {
             // Set console
             Console.OutputEncoding = Encoding.UTF8;
-            var log = new DefLogger();
-            log.Log("Neo.Compiler.MSIL console app v" + Assembly.GetEntryAssembly().GetName().Version);
+            log ??= new DefLogger();
+            log.Log("Neo.Compiler.MSIL console app v" + Assembly.GetAssembly(typeof(Program)).GetName().Version);
 
             var fileInfo = new FileInfo(options.File);
 
@@ -149,10 +151,11 @@ namespace Neo.Compiler
                 log.Log("LoadModule Error:" + err.ToString());
                 return -1;
             }
+            JObject abi;
             byte[] bytes;
             int bSucc = 0;
-            string jsonstr = null;
-            NeoModule module = null;
+            string debugstr = null;
+            NeoModule module;
 
             // Convert and build
             try
@@ -162,27 +165,40 @@ namespace Neo.Compiler
                 module = conv.Convert(mod, option);
                 bytes = module.Build();
                 log.Log("convert succ");
-
+                Dictionary<int, int> addrConvTable = null;
                 if (options.Optimize)
                 {
-                    var optimize = NefOptimizeTool.Optimize(bytes);
+                    HashSet<int> entryPoints = new HashSet<int>();
+                    foreach (var func in module.mapMethods)
+                    {
+                        entryPoints.Add(func.Value.funcaddr);
+                    }
+                    var optimize = NefOptimizeTool.Optimize(bytes, entryPoints.ToArray(), out addrConvTable);
                     log.Log("optimization succ " + (((bytes.Length / (optimize.Length + 0.0)) * 100.0) - 100).ToString("0.00 '%'"));
                     bytes = optimize;
                 }
 
                 try
                 {
-                    var outjson = vmtool.FuncExport.Export(module, bytes);
-                    StringBuilder sb = new StringBuilder();
-                    outjson.ConvertToStringWithFormat(sb, 0);
-                    jsonstr = sb.ToString();
+                    abi = FuncExport.Export(module, bytes, addrConvTable);
                     log.Log("gen abi succ");
                 }
                 catch (Exception err)
                 {
                     log.Log("gen abi Error:" + err.ToString());
+                    return -1;
                 }
 
+                try
+                {
+                    var outjson = DebugExport.Export(module, bytes, addrConvTable);
+                    debugstr = outjson.ToString(false);
+                    log.Log("gen debug succ");
+                }
+                catch (Exception err)
+                {
+                    log.Log("gen debug Error:" + err.ToString());
+                }
             }
             catch (Exception err)
             {
@@ -198,7 +214,7 @@ namespace Neo.Compiler
                 var nef = new NefFile
                 {
                     Compiler = "neon",
-                    Version = Version.Parse(((AssemblyFileVersionAttribute)Assembly.GetExecutingAssembly()
+                    Version = Version.Parse(((AssemblyFileVersionAttribute)Assembly.GetAssembly(typeof(Program))
                         .GetCustomAttribute(typeof(AssemblyFileVersionAttribute))).Version),
                     Script = bytes,
                     ScriptHash = bytes.ToScriptHash()
@@ -222,10 +238,11 @@ namespace Neo.Compiler
 
             try
             {
+                var sbABI = abi.ToString(false);
                 string abiname = onlyname + ".abi.json";
 
                 File.Delete(abiname);
-                File.WriteAllText(abiname, jsonstr);
+                File.WriteAllText(abiname, sbABI.ToString());
                 log.Log("write:" + abiname);
                 bSucc++;
             }
@@ -237,22 +254,31 @@ namespace Neo.Compiler
 
             try
             {
-                var features = module == null ? ContractFeatures.NoProperty : module.attributes
-                    .Where(u => u.AttributeType.Name == "FeaturesAttribute")
-                    .Select(u => (ContractFeatures)u.ConstructorArguments.FirstOrDefault().Value)
-                    .FirstOrDefault();
+                string debugname = onlyname + ".debug.json";
+                string debugzip = onlyname + ".nefdbgnfo";
 
-                var extraAttributes = module == null ? new List<Mono.Collections.Generic.Collection<CustomAttributeArgument>>() : module.attributes.Where(u => u.AttributeType.Name == "ManifestExtraAttribute").Select(attribute => attribute.ConstructorArguments).ToList();
+                var tempName = Path.GetTempFileName();
+                File.Delete(tempName);
+                File.WriteAllText(tempName, debugstr);
+                File.Delete(debugzip);
+                using (var archive = ZipFile.Open(debugzip, ZipArchiveMode.Create))
+                {
+                    archive.CreateEntryFromFile(tempName, Path.GetFileName(debugname));
+                }
+                File.Delete(tempName);
+                log.Log("write:" + debugzip);
+                bSucc++;
+            }
+            catch (Exception err)
+            {
+                log.Log("Write debug Error:" + err.ToString());
+                return -1;
+            }
 
-                var extra = BuildExtraAttributes(extraAttributes);
-                var storage = features.HasFlag(ContractFeatures.HasStorage).ToString().ToLowerInvariant();
-                var payable = features.HasFlag(ContractFeatures.Payable).ToString().ToLowerInvariant();
-
+            try
+            {
                 string manifest = onlyname + ".manifest.json";
-                string defManifest =
-                    @"{""groups"":[],""features"":{""storage"":" + storage + @",""payable"":" + payable + @"},""abi"":" +
-                    jsonstr +
-                    @",""permissions"":[{""contract"":""*"",""methods"":""*""}],""trusts"":[],""safeMethods"":[],""extra"":" + extra + "}";
+                var defManifest = FuncExport.GenerateManifest(abi, module);
 
                 File.Delete(manifest);
                 File.WriteAllText(manifest, defManifest);
@@ -275,33 +301,13 @@ namespace Neo.Compiler
             {
             }
 
-            if (bSucc == 3)
+            if (bSucc == 4)
             {
                 log.Log("SUCC");
                 return 0;
             }
 
             return -1;
-        }
-
-        private static string BuildExtraAttributes(List<Mono.Collections.Generic.Collection<CustomAttributeArgument>> extraAttributes)
-        {
-            if (extraAttributes.Count == 0)
-            {
-                return "null";
-            }
-
-            string extra = "{";
-            foreach (var extraAttribute in extraAttributes)
-            {
-                var key = extraAttribute[0].Value;
-                var value = extraAttribute[1].Value;
-                extra += ($"\"{key}\":\"{value}\",");
-            }
-            extra = extra.Substring(0, extra.Length - 1);
-            extra += "}";
-
-            return extra;
         }
     }
 }

@@ -23,9 +23,8 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
             _engine = new TestEngine(TriggerType.Application, new Transaction()
             {
                 Attributes = new TransactionAttribute[0],
-                Cosigners = new Cosigner[0],
                 Script = new byte[0],
-                Sender = UInt160.Zero,
+                Signers = new Signer[] { new Signer() { Account = UInt160.Zero } },
                 Witnesses = new Witness[0],
                 NetworkFee = 1,
                 Nonce = 2,
@@ -48,6 +47,61 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
         }
 
         [TestMethod]
+        public void Test_SHA256()
+        {
+            _engine.Reset();
+            var result = _engine.ExecuteTestCaseStandard("SHA256", "asd");
+            Assert.AreEqual(VMState.HALT, _engine.State);
+            Assert.AreEqual(1, result.Count);
+
+            var item = result.Pop();
+            Assert.IsInstanceOfType(item, typeof(VM.Types.ByteString));
+            Assert.AreEqual("688787d8ff144c502c7f5cffaafe2cc588d86079f9de88304c26b0cb99ce91c6", item.GetSpan().ToArray().ToHexString());
+        }
+
+        [TestMethod]
+        public void Test_RIPEMD160()
+        {
+            _engine.Reset();
+            var str = System.Text.Encoding.Default.GetBytes("hello world");
+            var result = _engine.ExecuteTestCaseStandard("RIPEMD160", str);
+            Assert.AreEqual(VMState.HALT, _engine.State);
+            Assert.AreEqual(1, result.Count);
+
+            var item = result.Pop();
+            Assert.IsInstanceOfType(item, typeof(VM.Types.ByteString));
+            Assert.AreEqual("98c615784ccb5fe5936fbc0cbe9dfdb408d92f0f", item.GetSpan().ToArray().ToHexString());
+        }
+
+        [TestMethod]
+        public void Test_HASH160()
+        {
+            _engine.Reset();
+            var str = System.Text.Encoding.Default.GetBytes("hello world");
+            var result = _engine.ExecuteTestCaseStandard("hash160", str);
+            Assert.AreEqual(VMState.HALT, _engine.State);
+            Assert.AreEqual(1, result.Count);
+
+            var item = result.Pop();
+            Assert.IsInstanceOfType(item, typeof(VM.Types.ByteString));
+            Assert.AreEqual("d7d5ee7824ff93f94c3055af9382c86c68b5ca92", item.GetSpan().ToArray().ToHexString());
+        }
+
+        [TestMethod]
+        public void Test_HASH256()
+        {
+            _engine.Reset();
+            var str = System.Text.Encoding.Default.GetBytes("hello world");
+            var result = _engine.ExecuteTestCaseStandard("hash256", str);
+            Assert.AreEqual(VMState.HALT, _engine.State);
+            Assert.AreEqual(1, result.Count);
+
+            var item = result.Pop();
+            Assert.IsInstanceOfType(item, typeof(VM.Types.ByteString));
+            Assert.AreEqual("bc62d4b80d9e36da29c16c5d4d9f11731f36052c72401a76c23c0fb5a9b74423", item.GetSpan().ToArray().ToHexString());
+        }
+
+        [TestMethod]
         public void Test_VerifySignature()
         {
             byte[] signature = Crypto.Sign(_engine.ScriptContainer.GetHashData(),
@@ -56,26 +110,26 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
             // False
 
             _engine.Reset();
-            var result = _engine.ExecuteTestCaseStandard("verifySignature",
-                new ByteArray(_key.PublicKey.EncodePoint(true)), new ByteArray(new byte[64]));
+            var result = _engine.ExecuteTestCaseStandard("secp256r1VerifySignature",
+                new VM.Types.ByteString(_key.PublicKey.EncodePoint(true)), new VM.Types.ByteString(new byte[64]));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             var item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Boolean));
-            Assert.IsFalse(item.ToBoolean());
+            Assert.IsFalse(item.GetBoolean());
 
             // True
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard("verifySignature",
-                new ByteArray(_key.PublicKey.EncodePoint(true)), new ByteArray(signature));
+            result = _engine.ExecuteTestCaseStandard("secp256r1VerifySignature",
+                new VM.Types.ByteString(_key.PublicKey.EncodePoint(true)), new VM.Types.ByteString(signature));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Boolean));
-            Assert.IsTrue(item.ToBoolean());
+            Assert.IsTrue(item.GetBoolean());
         }
 
         [TestMethod]
@@ -87,28 +141,28 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
             // False
 
             _engine.Reset();
-            var result = _engine.ExecuteTestCaseStandard("verifySignatures",
-                new Array(new StackItem[] { new ByteArray(_key.PublicKey.EncodePoint(true)) }),
-                new Array(new StackItem[] { new ByteArray(new byte[64]) }));
+            var result = _engine.ExecuteTestCaseStandard("secp256r1VerifySignatures",
+                new Array(new StackItem[] { new VM.Types.ByteString(_key.PublicKey.EncodePoint(true)) }),
+                new Array(new StackItem[] { new VM.Types.ByteString(new byte[64]) }));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             var item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Boolean));
-            Assert.IsFalse(item.ToBoolean());
+            Assert.IsFalse(item.GetBoolean());
 
             // True
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard("verifySignatures",
-                new Array(new StackItem[] { new ByteArray(_key.PublicKey.EncodePoint(true)) }),
-                new Array(new StackItem[] { new ByteArray(signature) }));
+            result = _engine.ExecuteTestCaseStandard("secp256r1VerifySignatures",
+                new Array(new StackItem[] { new VM.Types.ByteString(_key.PublicKey.EncodePoint(true)) }),
+                new Array(new StackItem[] { new VM.Types.ByteString(signature) }));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Boolean));
-            Assert.IsTrue(item.ToBoolean());
+            Assert.IsTrue(item.GetBoolean());
         }
 
         [TestMethod]
@@ -120,30 +174,30 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
             // False
 
             _engine.Reset();
-            var result = _engine.ExecuteTestCaseStandard("verifySignaturesWithMessage",
-                new ByteArray(new byte[0]),
-                new Array(new StackItem[] { new ByteArray(_key.PublicKey.EncodePoint(true)) }),
-                new Array(new StackItem[] { new ByteArray(new byte[64]) }));
+            var result = _engine.ExecuteTestCaseStandard("secp256r1VerifySignaturesWithMessage",
+                new VM.Types.ByteString(new byte[0]),
+                new Array(new StackItem[] { new VM.Types.ByteString(_key.PublicKey.EncodePoint(true)) }),
+                new Array(new StackItem[] { new VM.Types.ByteString(new byte[64]) }));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             var item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Boolean));
-            Assert.IsFalse(item.ToBoolean());
+            Assert.IsFalse(item.GetBoolean());
 
             // True
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard("verifySignaturesWithMessage",
-                new ByteArray(_engine.ScriptContainer.GetHashData()),
-                new Array(new StackItem[] { new ByteArray(_key.PublicKey.EncodePoint(true)) }),
-                new Array(new StackItem[] { new ByteArray(signature) }));
+            result = _engine.ExecuteTestCaseStandard("secp256r1VerifySignaturesWithMessage",
+                new VM.Types.ByteString(_engine.ScriptContainer.GetHashData()),
+                new Array(new StackItem[] { new VM.Types.ByteString(_key.PublicKey.EncodePoint(true)) }),
+                new Array(new StackItem[] { new VM.Types.ByteString(signature) }));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Boolean));
-            Assert.IsTrue(item.ToBoolean());
+            Assert.IsTrue(item.GetBoolean());
         }
 
         [TestMethod]
@@ -155,28 +209,28 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
             // False
 
             _engine.Reset();
-            var result = _engine.ExecuteTestCaseStandard("verifySignatureWithMessage",
-                new ByteArray(new byte[0]),
-                new ByteArray(_key.PublicKey.EncodePoint(true)), new ByteArray(signature));
+            var result = _engine.ExecuteTestCaseStandard("secp256r1VerifySignatureWithMessage",
+                new VM.Types.ByteString(new byte[0]),
+                new VM.Types.ByteString(_key.PublicKey.EncodePoint(true)), new VM.Types.ByteString(signature));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             var item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Boolean));
-            Assert.IsFalse(item.ToBoolean());
+            Assert.IsFalse(item.GetBoolean());
 
             // True
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard("verifySignatureWithMessage",
-                new ByteArray(_engine.ScriptContainer.GetHashData()),
-                new ByteArray(_key.PublicKey.EncodePoint(true)), new ByteArray(signature));
+            result = _engine.ExecuteTestCaseStandard("secp256r1VerifySignatureWithMessage",
+                new VM.Types.ByteString(_engine.ScriptContainer.GetHashData()),
+                new VM.Types.ByteString(_key.PublicKey.EncodePoint(true)), new VM.Types.ByteString(signature));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Boolean));
-            Assert.IsTrue(item.ToBoolean());
+            Assert.IsTrue(item.GetBoolean());
         }
     }
 }

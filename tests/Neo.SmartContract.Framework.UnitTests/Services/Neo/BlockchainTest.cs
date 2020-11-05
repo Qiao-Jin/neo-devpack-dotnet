@@ -37,7 +37,7 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
 
             var item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(_block.Index, item.GetBigInteger());
+            Assert.AreEqual(_block.Index, item.GetInteger());
         }
 
         [TestMethod]
@@ -46,37 +46,37 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
             // Not found
 
             _engine.Reset();
-            var result = _engine.ExecuteTestCaseStandard("getTransactionHeight", new ByteArray(UInt256.Zero.ToArray()));
+            var result = _engine.ExecuteTestCaseStandard("getTransactionHeight", new VM.Types.ByteString(UInt256.Zero.ToArray()));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             var item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(BigInteger.MinusOne, item.GetBigInteger());
+            Assert.AreEqual(BigInteger.MinusOne, item.GetInteger());
 
             // Found
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard("getTransactionHeight", new ByteArray(_block.Transactions[0].Hash.ToArray()));
+            result = _engine.ExecuteTestCaseStandard("getTransactionHeight", new VM.Types.ByteString(_block.Transactions[0].Hash.ToArray()));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(_block.Index, item.GetBigInteger());
+            Assert.AreEqual(_block.Index, item.GetInteger());
         }
 
         [TestMethod]
         public void Test_GetBlockByHash()
         {
-            Test_GetBlock("getBlockByHash", new ByteArray(_block.Hash.ToArray()), new ByteArray(UInt256.Parse("0x0000000000000000000000000000000000000000000000000000000000000001").ToArray()));
+            Test_GetBlock("getBlockByHash", new VM.Types.ByteString(_block.Hash.ToArray()), new VM.Types.ByteString(UInt256.Parse("0x0000000000000000000000000000000000000000000000000000000000000001").ToArray()));
         }
 
         [TestMethod]
         public void Test_GetTxByHash()
         {
-            Test_GetTransaction("getTxByHash", new StackItem[] { new ByteArray(_block.Transactions[0].Hash.ToArray()) },
-                new StackItem[] { new ByteArray(UInt256.Zero.ToArray()) },
+            Test_GetTransaction("getTxByHash", new StackItem[] { new VM.Types.ByteString(_block.Transactions[0].Hash.ToArray()) },
+                new StackItem[] { new VM.Types.ByteString(UInt256.Zero.ToArray()) },
                 true);
         }
 
@@ -93,8 +93,8 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
         public void Test_GetTxByBlockHash()
         {
             Test_GetTransaction("getTxByBlockHash", new StackItem[] {
-                new ByteArray(_block.Hash.ToArray()), new Integer(0) },
-                new StackItem[] { new ByteArray(_block.Hash.ToArray()), new Integer(_block.Transactions.Length + 1) },
+                new VM.Types.ByteString(_block.Hash.ToArray()), new Integer(0) },
+                new StackItem[] { new VM.Types.ByteString(_block.Hash.ToArray()), new Integer(_block.Transactions.Length + 1) },
                 false);
         }
 
@@ -103,7 +103,7 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
             // Not found
 
             _engine.Reset();
-            var result = _engine.ExecuteTestCaseStandard(method, Concat(notFoundArgs, new ByteArray(new byte[0])));
+            var result = _engine.ExecuteTestCaseStandard(method, Concat(notFoundArgs, new VM.Types.ByteString(new byte[0])));
 
             if (expectedNullAsNotFound)
             {
@@ -122,93 +122,93 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
             // Hash
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard(method, Concat(foundArgs, new ByteArray(Encoding.UTF8.GetBytes("Hash"))));
+            result = _engine.ExecuteTestCaseStandard(method, Concat(foundArgs, new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("Hash"))));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             var item = result.Pop();
-            Assert.IsInstanceOfType(item, typeof(ByteArray));
+            Assert.IsInstanceOfType(item, typeof(VM.Types.ByteString));
             CollectionAssert.AreEqual(tx.Hash.ToArray(), item.GetSpan().ToArray());
 
             // NetworkFee
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard(method, Concat(foundArgs, new ByteArray(Encoding.UTF8.GetBytes("NetworkFee"))));
+            result = _engine.ExecuteTestCaseStandard(method, Concat(foundArgs, new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("NetworkFee"))));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(tx.NetworkFee, item.GetBigInteger());
+            Assert.AreEqual(tx.NetworkFee, item.GetInteger());
 
             // Nonce
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard(method, Concat(foundArgs, new ByteArray(Encoding.UTF8.GetBytes("Nonce"))));
+            result = _engine.ExecuteTestCaseStandard(method, Concat(foundArgs, new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("Nonce"))));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(tx.Nonce, item.GetBigInteger());
+            Assert.AreEqual(tx.Nonce, item.GetInteger());
 
             // SystemFee
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard(method, Concat(foundArgs, new ByteArray(Encoding.UTF8.GetBytes("SystemFee"))));
+            result = _engine.ExecuteTestCaseStandard(method, Concat(foundArgs, new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("SystemFee"))));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(tx.SystemFee, item.GetBigInteger());
+            Assert.AreEqual(tx.SystemFee, item.GetInteger());
 
             // ValidUntilBlock
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard(method, Concat(foundArgs, new ByteArray(Encoding.UTF8.GetBytes("ValidUntilBlock"))));
+            result = _engine.ExecuteTestCaseStandard(method, Concat(foundArgs, new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("ValidUntilBlock"))));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(tx.ValidUntilBlock, item.GetBigInteger());
+            Assert.AreEqual(tx.ValidUntilBlock, item.GetInteger());
 
             // Version
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard(method, Concat(foundArgs, new ByteArray(Encoding.UTF8.GetBytes("Version"))));
+            result = _engine.ExecuteTestCaseStandard(method, Concat(foundArgs, new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("Version"))));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(tx.Version, item.GetBigInteger());
+            Assert.AreEqual(tx.Version, item.GetInteger());
 
             // Script
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard(method, Concat(foundArgs, new ByteArray(Encoding.UTF8.GetBytes("Script"))));
+            result = _engine.ExecuteTestCaseStandard(method, Concat(foundArgs, new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("Script"))));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
-            Assert.IsInstanceOfType(item, typeof(ByteArray));
+            Assert.IsInstanceOfType(item, typeof(VM.Types.ByteString));
             CollectionAssert.AreEqual(tx.Script, item.GetSpan().ToArray());
 
             // Sender
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard(method, Concat(foundArgs, new ByteArray(Encoding.UTF8.GetBytes("Sender"))));
+            result = _engine.ExecuteTestCaseStandard(method, Concat(foundArgs, new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("Sender"))));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
-            Assert.IsInstanceOfType(item, typeof(ByteArray));
+            Assert.IsInstanceOfType(item, typeof(VM.Types.ByteString));
             CollectionAssert.AreEqual(tx.Sender.ToArray(), item.GetSpan().ToArray());
         }
 
-        private StackItem[] Concat(StackItem[] a, ByteArray b)
+        private StackItem[] Concat(StackItem[] a, VM.Types.ByteString b)
         {
             return a.Concat(new StackItem[] { b }).ToArray();
         }
@@ -224,7 +224,7 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
             // Not found
 
             _engine.Reset();
-            var result = _engine.ExecuteTestCaseStandard(method, notFoundArg, new ByteArray(new byte[0]));
+            var result = _engine.ExecuteTestCaseStandard(method, notFoundArg, new VM.Types.ByteString(new byte[0]));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
@@ -234,95 +234,95 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
             // Hash
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard(method, foundArg, new ByteArray(Encoding.UTF8.GetBytes("Hash")));
+            result = _engine.ExecuteTestCaseStandard(method, foundArg, new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("Hash")));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
-            Assert.IsInstanceOfType(item, typeof(ByteArray));
+            Assert.IsInstanceOfType(item, typeof(VM.Types.ByteString));
             CollectionAssert.AreEqual(_block.Hash.ToArray(), item.GetSpan().ToArray());
 
             // Index
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard(method, foundArg, new ByteArray(Encoding.UTF8.GetBytes("Index")));
+            result = _engine.ExecuteTestCaseStandard(method, foundArg, new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("Index")));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(_block.Index, item.GetBigInteger());
+            Assert.AreEqual(_block.Index, item.GetInteger());
 
             // MerkleRoot
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard(method, foundArg, new ByteArray(Encoding.UTF8.GetBytes("MerkleRoot")));
+            result = _engine.ExecuteTestCaseStandard(method, foundArg, new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("MerkleRoot")));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
-            Assert.IsInstanceOfType(item, typeof(ByteArray));
+            Assert.IsInstanceOfType(item, typeof(VM.Types.ByteString));
             CollectionAssert.AreEqual(_block.MerkleRoot.ToArray(), item.GetSpan().ToArray());
 
             // NextConsensus
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard(method, foundArg, new ByteArray(Encoding.UTF8.GetBytes("NextConsensus")));
+            result = _engine.ExecuteTestCaseStandard(method, foundArg, new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("NextConsensus")));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
-            Assert.IsInstanceOfType(item, typeof(ByteArray));
+            Assert.IsInstanceOfType(item, typeof(VM.Types.ByteString));
             CollectionAssert.AreEqual(_block.NextConsensus.ToArray(), item.GetSpan().ToArray());
 
             // PrevHash
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard(method, foundArg, new ByteArray(Encoding.UTF8.GetBytes("PrevHash")));
+            result = _engine.ExecuteTestCaseStandard(method, foundArg, new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("PrevHash")));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
-            Assert.IsInstanceOfType(item, typeof(ByteArray));
+            Assert.IsInstanceOfType(item, typeof(VM.Types.ByteString));
             CollectionAssert.AreEqual(_block.PrevHash.ToArray(), item.GetSpan().ToArray());
 
             // Timestamp
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard(method, foundArg, new ByteArray(Encoding.UTF8.GetBytes("Timestamp")));
+            result = _engine.ExecuteTestCaseStandard(method, foundArg, new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("Timestamp")));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(_block.Timestamp, item.GetBigInteger());
+            Assert.AreEqual(_block.Timestamp, item.GetInteger());
 
             // TransactionsCount
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard(method, foundArg, new ByteArray(Encoding.UTF8.GetBytes("TransactionsCount")));
+            result = _engine.ExecuteTestCaseStandard(method, foundArg, new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("TransactionsCount")));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(_block.Transactions.Length, item.GetBigInteger());
+            Assert.AreEqual(_block.Transactions.Length, item.GetInteger());
 
             // Version
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard(method, foundArg, new ByteArray(Encoding.UTF8.GetBytes("Version")));
+            result = _engine.ExecuteTestCaseStandard(method, foundArg, new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("Version")));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Integer));
-            Assert.AreEqual(_block.Version, item.GetBigInteger());
+            Assert.AreEqual(_block.Version, item.GetInteger());
 
             // Uknown property
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard(method, foundArg, new ByteArray(Encoding.UTF8.GetBytes("ASD")));
+            result = _engine.ExecuteTestCaseStandard(method, foundArg, new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("ASD")));
             Assert.AreEqual(VMState.FAULT, _engine.State);
         }
 
@@ -334,7 +334,18 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
                 Script = new byte[] { 0x01, 0x02, 0x03 },
                 Manifest = new Manifest.ContractManifest()
                 {
-                    Features = Manifest.ContractFeatures.HasStorage
+                    Features = Manifest.ContractFeatures.HasStorage,
+                    SupportedStandards = new string[0],
+                    Groups = new Manifest.ContractGroup[0],
+                    Trusts = Manifest.WildcardContainer<UInt160>.Create(),
+                    Permissions = new Manifest.ContractPermission[0],
+                    SafeMethods = Manifest.WildcardContainer<string>.Create(),
+                    Abi = new Manifest.ContractAbi()
+                    {
+                        Methods = new Manifest.ContractMethodDescriptor[0],
+                        Events = new Manifest.ContractEventDescriptor[0],
+                        Hash = new byte[] { 0x01, 0x02, 0x03 }.ToScriptHash()
+                    },
                 }
             };
             _engine.Snapshot.Contracts.GetOrAdd(contract.ScriptHash, () => contract);
@@ -342,50 +353,61 @@ namespace Neo.SmartContract.Framework.UnitTests.Services.Neo
             // Not found
 
             _engine.Reset();
-            var result = _engine.ExecuteTestCaseStandard("getContract", new ByteArray(UInt160.Zero.ToArray()), new ByteArray(new byte[0]));
+            var result = _engine.ExecuteTestCaseStandard("getContract", new VM.Types.ByteString(UInt160.Zero.ToArray()), new VM.Types.ByteString(new byte[20]));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             var item = result.Pop();
             Assert.IsInstanceOfType(item, typeof(Null));
 
+            // Found + Manifest
+
+            _engine.Reset();
+            result = _engine.ExecuteTestCaseStandard("getContract", new VM.Types.ByteString(contract.ScriptHash.ToArray()), new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("Manifest")));
+            Assert.AreEqual(VMState.HALT, _engine.State);
+            Assert.AreEqual(1, result.Count);
+
+            item = result.Pop();
+            Assert.IsInstanceOfType(item, typeof(VM.Types.ByteString));
+            Assert.AreEqual(contract.Manifest.ToString(), item.GetString());
+
             // Found + HasStorage
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard("getContract", new ByteArray(contract.ScriptHash.ToArray()), new ByteArray(Encoding.UTF8.GetBytes("HasStorage")));
+            result = _engine.ExecuteTestCaseStandard("getContract", new VM.Types.ByteString(contract.ScriptHash.ToArray()), new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("HasStorage")));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
-            Assert.IsInstanceOfType(item, typeof(VM.Types.Boolean));
-            Assert.AreEqual(contract.HasStorage, item.ToBoolean());
+            Assert.IsInstanceOfType(item, typeof(Boolean));
+            Assert.AreEqual(contract.HasStorage, item.GetBoolean());
 
             // Found + IsPayable
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard("getContract", new ByteArray(contract.ScriptHash.ToArray()), new ByteArray(Encoding.UTF8.GetBytes("IsPayable")));
+            result = _engine.ExecuteTestCaseStandard("getContract", new VM.Types.ByteString(contract.ScriptHash.ToArray()), new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("IsPayable")));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
-            Assert.IsInstanceOfType(item, typeof(VM.Types.Boolean));
-            Assert.AreEqual(contract.Payable, item.ToBoolean());
+            Assert.IsInstanceOfType(item, typeof(Boolean));
+            Assert.AreEqual(contract.Payable, item.GetBoolean());
 
             // Found + IsPayable
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard("getContract", new ByteArray(contract.ScriptHash.ToArray()), new ByteArray(Encoding.UTF8.GetBytes("Script")));
+            result = _engine.ExecuteTestCaseStandard("getContract", new VM.Types.ByteString(contract.ScriptHash.ToArray()), new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("Script")));
             Assert.AreEqual(VMState.HALT, _engine.State);
             Assert.AreEqual(1, result.Count);
 
             item = result.Pop();
-            Assert.IsInstanceOfType(item, typeof(VM.Types.ByteArray));
+            Assert.IsInstanceOfType(item, typeof(VM.Types.ByteString));
             CollectionAssert.AreEqual(contract.Script, item.GetSpan().ToArray());
 
             // Found + Uknown property
 
             _engine.Reset();
-            result = _engine.ExecuteTestCaseStandard("getContract", new ByteArray(contract.ScriptHash.ToArray()), new ByteArray(Encoding.UTF8.GetBytes("ASD")));
+            result = _engine.ExecuteTestCaseStandard("getContract", new VM.Types.ByteString(contract.ScriptHash.ToArray()), new VM.Types.ByteString(Utility.StrictUTF8.GetBytes("ASD")));
             Assert.AreEqual(VMState.FAULT, _engine.State);
         }
     }
